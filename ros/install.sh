@@ -1,5 +1,5 @@
 #!/bin/bash
-# https://grok.com/share/bGVnYWN5_57a74bca-aaec-40b5-82ac-715c49d6fa5d
+# https://grok.com/share/bGVnYWN5_7b60483e-6c05-4f20-966f-89e16ca8512e
 
 # Define colors
 GREEN="\e[32m"
@@ -14,12 +14,63 @@ function run_command() {
     exit 1
 }
 
+# Detect Ubuntu version and set default ROS distribution
+UBUNTU_CODENAME=$(lsb_release -cs)
+case "$UBUNTU_CODENAME" in
+    "jammy")
+        DEFAULT_DISTRO="humble"
+        DEFAULT_DISTRO_CAP="Humble"
+        DEFAULT_OPTION="1"
+        ;;
+    "noble")
+        DEFAULT_DISTRO="jazzy"
+        DEFAULT_DISTRO_CAP="Jazzy"
+        DEFAULT_OPTION="2"
+        ;;
+    *)
+        echo -e "${YELLOW}Warning: Unsupported Ubuntu version ($UBUNTU_CODENAME). Defaulting to Jazzy.${RESET}"
+        DEFAULT_DISTRO="jazzy"
+        DEFAULT_DISTRO_CAP="Jazzy"
+        DEFAULT_OPTION="2"
+        ;;
+esac
+
+# Prompt user to choose ROS distribution
 echo "Current PATH: $PATH"
 which sudo
-
-# Inform the user
 echo ""
-echo -e "${GREEN}This script will install ROS2 jazzy and usb_cam on your Ubuntu system.${RESET}"
+echo -e "${GREEN}This script will install ROS2 and usb_cam on your Ubuntu system.${RESET}"
+echo -e "${GREEN}Detected Ubuntu version: $UBUNTU_CODENAME${RESET}"
+echo ""
+echo -e "${GREEN}Please select a ROS2 distribution to install:${RESET}"
+echo -e "${GREEN}1. Humble (for Ubuntu 22.04)${RESET}"
+echo -e "${GREEN}2. Jazzy (for Ubuntu 24.04)${RESET}"
+echo ""
+read -p "Enter your choice (1 or 2, press Enter for default [$DEFAULT_OPTION]): " choice
+
+# Set ROS_DISTRO based on user input or default
+case "$choice" in
+    1)
+        ROS_DISTRO="humble"
+        ROS_DISTRO_CAP="Humble"
+        ;;
+    2)
+        ROS_DISTRO="jazzy"
+        ROS_DISTRO_CAP="Jazzy"
+        ;;
+    ""|" ")
+        ROS_DISTRO="$DEFAULT_DISTRO"
+        ROS_DISTRO_CAP="$DEFAULT_DISTRO_CAP"
+        ;;
+    *)
+        echo -e "${YELLOW}Invalid choice. Using default: $DEFAULT_DISTRO_CAP${RESET}"
+        ROS_DISTRO="$DEFAULT_DISTRO"
+        ROS_DISTRO_CAP="$DEFAULT_DISTRO_CAP"
+        ;;
+esac
+
+echo ""
+echo -e "${GREEN}Selected ROS2 distribution: $ROS_DISTRO_CAP${RESET}"
 echo -e "${GREEN}Please make sure you have the necessary permissions.${RESET}"
 echo -e "${GREEN}Enter your sudo password when prompted.${RESET}"
 echo ""
@@ -67,7 +118,7 @@ run_command sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/maste
 echo ""
 echo -e "${GREEN}Adding ROS 2 repository...${RESET}"
 echo ""
-repository_line="deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main"
+repository_line="deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $UBUNTU_CODENAME main"
 ros2_list_file="/etc/apt/sources.list.d/ros2.list"
 if [ -f "$ros2_list_file" ] && grep -Fx "$repository_line" "$ros2_list_file" > /dev/null; then
     echo -e "${GREEN}ROS 2 repository already configured in $ros2_list_file, skipping...${RESET}"
@@ -91,9 +142,9 @@ run_command sudo DEBIAN_FRONTEND=noninteractive apt upgrade -y
 
 # Install ROS 2
 echo ""
-echo -e "${GREEN}Installing ROS2 jazzy desktop...${RESET}"
+echo -e "${GREEN}Installing ROS2 $ROS_DISTRO_CAP desktop...${RESET}"
 echo ""
-run_command sudo apt install -y ros-jazzy-desktop
+run_command sudo apt install -y ros-$ROS_DISTRO-desktop
 
 # Install development tools (optional)
 echo ""
@@ -105,17 +156,17 @@ run_command sudo PYTHONWARNINGS=ignore apt install -y ros-dev-tools
 echo ""
 echo -e "${GREEN}Installing usb_cam package and dependencies...${RESET}"
 echo ""
-source /opt/ros/jazzy/setup.bash  # 加载 ROS2 环境以设置 $ROS_DISTRO
+source /opt/ros/$ROS_DISTRO/setup.bash  # 加载 ROS2 环境以设置 $ROS_DISTRO
 run_command sudo apt install -y ros-$ROS_DISTRO-camera-calibration-parsers ros-$ROS_DISTRO-camera-info-manager ros-$ROS_DISTRO-launch-testing-ament-cmake ros-$ROS_DISTRO-usb-cam
 
 # Automatically add ROS2 source to shell config
 echo ""
 echo -e "${GREEN}Adding ROS2 environment setup to your shell configuration...${RESET}"
 shell_config="$HOME/.bashrc"  # 可改为 .zshrc 等
-if ! grep -Fx "source /opt/ros/jazzy/setup.bash" "$shell_config" > /dev/null; then
+if ! grep -Fx "source /opt/ros/$ROS_DISTRO/setup.bash" "$shell_config" > /dev/null; then
     echo "" >> "$shell_config"
-    echo "# Source ROS2 Jazzy environment" >> "$shell_config"
-    echo "source /opt/ros/jazzy/setup.bash" >> "$shell_config"
+    echo "# Source ROS2 $ROS_DISTRO_CAP environment" >> "$shell_config"
+    echo "source /opt/ros/$ROS_DISTRO/setup.bash" >> "$shell_config"
     echo -e "${GREEN}ROS2 environment has been added to $shell_config.${RESET}"
     echo -e "${GREEN}It will be automatically sourced in new terminal sessions.${RESET}"
 else
@@ -125,7 +176,7 @@ echo ""
 
 # Inform the user
 echo -e "${GREEN}Installation complete.${RESET}"
-echo -e "${GREEN}ROS2 Jazzy and usb_cam are now installed.${RESET}"
+echo -e "${GREEN}ROS2 $ROS_DISTRO_CAP and usb_cam are now installed.${RESET}"
 echo -e "${GREEN}Open a new terminal to start using ROS2 and usb_cam.${RESET}"
 echo -e "${GREEN}Or run 'source $shell_config' in this terminal to use it immediately.${RESET}"
 echo ""
